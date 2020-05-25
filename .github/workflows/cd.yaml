@@ -1,0 +1,124 @@
+name: cd
+
+on:
+  push:
+    branches: [master]
+
+env:
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  build-and-push-stable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # TODO Use YAML anchors when available
+      # Construir y empujar imagen stable a GitHub packages
+      - name:
+          Construir y empujar
+          docker://docker.pkg.github.com/dued/safety/safety:docker-s3
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: dued/safety/safety
+          username: ${{ github.actor }}
+          tags: docker-s3
+          target: docker-s3
+      - name:
+          Construir y empujar
+          docker://docker.pkg.github.com/dued/safety/safety:postgres-s3
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: dued/safety/safety
+          username: ${{ github.actor }}
+          tags: postgres-s3
+          target: postgres-s3
+      - name:
+          Construir y empujar docker://docker.pkg.github.com/dued/safety/safety:docker
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: dued/safety/safety
+          username: ${{ github.actor }}
+          tags: docker
+          target: docker
+      - name:
+          Construir y empujar docker://docker.pkg.github.com/dued/safety/safety:postgres
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: dued/safety/safety
+          username: ${{ github.actor }}
+          tags: postgres
+          target: postgres
+      - name:
+          Construir y empujar docker://docker.pkg.github.com/dued/safety/safety:latest
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: dued/safety/safety
+          username: ${{ github.actor }}
+          tags: latest
+          target: latest
+      # Construir y empujar imagen stable a Docker Hub
+      - name: Construir y empujar docker://docker.io/dued/safety:docker-s3
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: docker.io
+          repository: dued/safety
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          tags: docker-s3
+          target: docker-s3
+      - name: Construir y empujar docker://docker.io/dued/safety:postgres-s3
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: docker.io
+          repository: dued/safety
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          tags: postgres-s3
+          target: postgres-s3
+      - name: Construir y empujar docker://docker.io/dued/safety:docker
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: docker.io
+          repository: dued/safety
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          tags: docker
+          target: docker
+      - name: Construir y empujar docker://docker.io/dued/safety:postgres
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: docker.io
+          repository: dued/safety
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          tags: postgres
+          target: postgres
+      - name: Construir y empujar docker://docker.io/dued/safety:latest
+        uses: docker/build-push-action@v1.1.0
+        with:
+          add_git_labels: true
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: docker.io
+          repository: dued/safety
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          tags: latest
+          target: latest

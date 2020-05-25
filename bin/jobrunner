@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+"""Ejecute cuando debe todo comando extraído de las variables de entorno."""
+
+from __future__ import unicode_literals
+
+import logging
+import re
+import smtplib
+import sys
+from datetime import datetime
+from email.utils import formatdate
+from os import environ, path
+from socket import getfqdn
+from string import Template
+from subprocess import STDOUT, CalledProcessError, check_output
+
+logging.basicConfig(level=logging.INFO)
+logging.root.name = "jobrunner"
+
+# Obtenga la periodicidad esperada de la ubicación de este script
+periodicity = path.basename(path.dirname(path.abspath(__file__)))
+logging.info("%s UTC - Ejecutanto %s trabajos", datetime.utcnow(), periodicity)
+
+# Get email settings
+smtp_host = environ.get("SMTP_HOST")
+smtp_port = environ.get("SMTP_PORT")
+smtp_user = environ.get("SMTP_USER")
+smtp_pass = environ.get("SMTP_PASS", "")
+smtp_tls = environ.get("SMTP_TLS", "").lower() in {"1", "true"}
+from_ = environ.get("EMAIL_FROM")
+to = environ.get("EMAIL_TO")
+subject = environ.get("EMAIL_SUBJECT")
+
+# Get the commands we need to run
+to_run = dict()
+for key, when in environ.items():
+    match = re.match(r"^JOB_(\d+)_WHEN$", key)
+    if match and periodicity in when.split():
+        njob = int(match.group(1))
+        to_run[njob] = environ["JOB_{}_WHAT".format(njob)]
+
+if not to_run:
+    logging.info("Nada que hacer")
+    sys.exit()
+
+# Run commands in order
+message = [
+    "De: {}".format(from_),
+    "Para: {}".format(to),
+    "Fecha: {}".format(formatdate()),
+    "",
+]
+failed = False
+for njob, command in sorted(to_run.items()):
+    expanded_command = Template(command).safe_substitute(environ)
+    start = datetime.now()
+    logging.info("Ejecutando trabajo %d: `%s`", njob, expanded_command)
+    try:
+        result = check_output(expanded_command, stderr=STDOUT, shell=True, text=True)
+        success = True
+    except CalledProcessError as error:
+        failed = True
+        success = False
+        result = str(error) + "\n" + error.output
+        logging.exception("Ha fallado!")
+    end = datetime.now()
+    log = [
+        "",
+        "===================================",
+        "Trabajo {}: `{}`".format(njob, expanded_command),
+        "Iniciado: {!s}".format(start),
+        "Terminado: {!s}".format(end),
+        "Exitos: {!s}".format(success),
+        "",
+        result,
+    ]
+    logging.log(logging.INFO if success else logging.ERROR, "\n".join(log))
+    message += log
+
+
+# Report results
+if all((smtp_host, smtp_port, from_, to, subject)):
+    logging.info("Enviando reporte por correo digital")
+    message.insert(
+        0,
+        "Subject: {}".format(
+            subject.format(
+                hostname=getfqdn(),
+                periodicity=periodicity,
+                result="ERROR" if failed else "OK",
+            )
+        ),
+    )
+    smtp = None
+    try:
+        if smtp_tls:
+            smtp = smtplib.SMTP_SSL(smtp_host, smtp_port)
+        else:
+            smtp = smtplib.SMTP(smtp_host, smtp_port)
+        if smtp_user:
+            smtp.ehlo()
+            # If we can encrypt this session, do it
+            if smtp.has_extn("STARTTLS"):
+                smtp.starttls()
+                smtp.ehlo()  # re-identify ourselves over TLS connection
+            smtp.login(smtp_user, smtp_pass)
+        smtp.sendmail(from_, to, "\r\n".join(message))
+    except Exception:
+        logging.exception("Error al enviar correo digital")
+    finally:
+        if smtp is not None:
+            smtp.quit()
+else:
+    logging.info("Concluido")
+
+if failed:
+    sys.exit("Al menos un trabajo ha fallado")
